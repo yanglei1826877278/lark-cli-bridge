@@ -1,0 +1,35 @@
+services:
+  bridge:
+    build:
+      context: .
+      args:
+        LARK_CLI_VERSION: ${LARK_CLI_VERSION:-1.0.97}
+    image: lark-cli-bridge:local
+    restart: unless-stopped
+    init: true
+    env_file:
+      - .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8765
+      DB_PATH: /state/bridge.sqlite3
+      CLI_WORKDIR: /workspace
+      LARK_CLI_PATH: /usr/local/bin/lark-cli
+      LARKSUITE_CLI_CONFIG_DIR: /state/lark-config
+      LARKSUITE_CLI_DATA_DIR: /state/lark-data
+    ports:
+      - "127.0.0.1:${BRIDGE_PORT:-8765}:8765"
+    volumes:
+      - bridge-state:/state
+      - bridge-workspace:/workspace
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  bridge-state:
+  bridge-workspace:
