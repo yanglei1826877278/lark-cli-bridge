@@ -155,7 +155,7 @@ def test_slow_cli_does_not_block_other_requests(tmp_path):
     started=threading.Event()
     release=threading.Event()
 
-    def slow_invoke(name,args):
+    def slow_invoke(name,args,**kwargs):
         started.set()
         assert release.wait(2)
         return {'ok':True}
@@ -194,6 +194,13 @@ def test_full_mode_requires_separate_oauth_scope(tmp_path):
     _,full=grant(client,permission_profile='full')
     assert set(full['scope'].split()) == {'lark:read','lark:write','lark:full'}
     full_token=full['access_token']
+    # Full OAuth permission also lifts the fixed tools' resource allowlists.
+    unrestricted_doc=rpc(client,full_token,'tools/call',
+        {'name':'read_document','arguments':{'doc':'docOutsideAllowlist'}}).json()['result']
+    assert unrestricted_doc['isError'] is False
+    unrestricted_base=rpc(client,full_token,'tools/call',
+        {'name':'list_base_tables','arguments':{'base_token':'basOutsideAllowlist'}}).json()['result']
+    assert unrestricted_base['isError'] is False
     help_result=rpc(client,full_token,'tools/call',
                     {'name':'run_lark_cli','arguments':{'argv':['--help']}}).json()['result']
     assert help_result['isError'] is False

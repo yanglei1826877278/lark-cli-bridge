@@ -44,7 +44,7 @@ flowchart LR
 `BRIDGE_PERMISSION_MODE` 控制服务器允许授予的最高权限：
 
 - `restricted`：只提供固定工具，并执行 Base、文档白名单。
-- `full`：OAuth 页面出现“受限权限”和“完全权限”选项。选择完全权限后，当前连接可调用 `run_lark_cli`。
+- `full`：OAuth 页面出现“受限权限”和“完全权限”选项。选择完全权限后，当前连接可调用 `run_lark_cli`，固定工具也不再检查 Base 和文档白名单。
 
 完全权限继承 Bridge 进程能访问的 CLI 身份、网络和文件。在 Docker 中，本地文件访问限制在容器文件系统以及显式挂载的 `/workspace` 和 `/state`；在本机运行时则继承当前操作系统用户的权限。
 

@@ -8,12 +8,12 @@ from .cli import CliRunner, CommandError, token_from_document
 TOOLS = [
     {'name':'list_wiki_spaces', 'description':'查看当前已授权飞书账号可访问的 Wiki 知识空间。', 'properties':{'page_size':{'type':'integer','minimum':1,'maximum':50,'default':10}}, 'required':[], 'write':False},
     {'name':'list_personal_documents', 'description':'列出个人文档库根目录的文档、表格和多维表格；返回分页信息。', 'properties':{'page_size':{'type':'integer','minimum':1,'maximum':50,'default':50},'page_token':{'type':'string'}}, 'required':[], 'write':False},
-    {'name':'list_base_tables', 'description':'查看指定飞书多维表格下的数据表。只能访问预先配置允许的 Base。', 'properties':{'base_token':{'type':'string'}},'required':['base_token'],'write':False},
+    {'name':'list_base_tables', 'description':'查看指定飞书多维表格下的数据表；受限权限连接只能访问预先允许的 Base。', 'properties':{'base_token':{'type':'string'}},'required':['base_token'],'write':False},
     {'name':'list_base_fields', 'description':'获取指定多维表格的数据表字段信息，写入前建议先调用。', 'properties':{'base_token':{'type':'string'},'table_id':{'type':'string'}},'required':['base_token','table_id'],'write':False},
     {'name':'list_base_records', 'description':'读取指定飞书多维表格中最新一页记录。', 'properties':{'base_token':{'type':'string'},'table_id':{'type':'string'},'limit':{'type':'integer','minimum':1,'maximum':100,'default':20}},'required':['base_token','table_id'],'write':False},
     {'name':'create_base_record', 'description':'向指定飞书多维表格新建一条记录。fields 对象的键必须与该表字段名一致；绝不猜测 SEO 指标。调用前核对目标与字段。','properties':{'base_token':{'type':'string'},'table_id':{'type':'string'},'fields':{'type':'object','additionalProperties':True}},'required':['base_token','table_id','fields'],'write':True},
-    {'name':'read_document', 'description':'读取允许列表里的飞书云文档内容。', 'properties':{'doc':{'type':'string'}},'required':['doc'],'write':False},
-    {'name':'append_document', 'description':'向允许列表中的飞书云文档末尾追加一段 Markdown。仅在明确要求保存时调用。','properties':{'doc':{'type':'string'},'content':{'type':'string','maxLength':8000}},'required':['doc','content'],'write':True},
+    {'name':'read_document', 'description':'读取飞书云文档；受限权限连接只能读取允许列表或本 Bridge 创建的文档。', 'properties':{'doc':{'type':'string'}},'required':['doc'],'write':False},
+    {'name':'append_document', 'description':'向飞书云文档末尾追加 Markdown；受限权限连接只能操作允许列表或本 Bridge 创建的文档。仅在明确要求保存时调用。','properties':{'doc':{'type':'string'},'content':{'type':'string','maxLength':8000}},'required':['doc','content'],'write':True},
     {'name':'create_document', 'description':'在当前用户的个人文档库中新建飞书云文档；可同时写入完整 Markdown 正文。新文档自动允许后续读取和追加。', 'properties':{'title':{'type':'string','maxLength':200},'content':{'type':'string','maxLength':50000}},'required':['title'],'write':True},
 ]
 
@@ -59,7 +59,7 @@ class ToolRegistry:
             })
         return output
 
-    def invoke(self, name: str, params: Any):
+    def invoke(self, name: str, params: Any, *, unrestricted: bool = False):
         if name not in self.by_name:
             raise ValueError('未知工具')
         if not isinstance(params, dict):
@@ -100,7 +100,7 @@ class ToolRegistry:
             return self.runner.run(args+['--as','user','--format','json'])
         if name in ('list_base_tables','list_base_fields','list_base_records','create_base_record'):
             base = params['base_token']
-            if base not in self.cfg.bases:
+            if not unrestricted and base not in self.cfg.bases:
                 raise ValueError('此 Base 未加入 ALLOWED_BASE_TOKENS 白名单')
             if name == 'list_base_tables':
                 return self.runner.run(['base','+table-list','--base-token',base,'--as','user','--format','json'])
@@ -141,8 +141,8 @@ class ToolRegistry:
             return result
         if name in ('read_document','append_document'):
             doc = token_from_document(params['doc'])
-            if not self.document_allowed(doc):
-                raise ValueError('此文档未加入允许列表，且不是本 Bridge 创建的文档')
+            if not unrestricted and not self.document_allowed(doc):
+                raise ValueError('当前连接为受限权限；此文档未加入允许列表，且不是本 Bridge 创建的文档')
             if name=='read_document':
                 return self.runner.run(['docs','+fetch','--doc',doc,'--doc-format','markdown','--as','user','--format','json'])
             content = params['content']

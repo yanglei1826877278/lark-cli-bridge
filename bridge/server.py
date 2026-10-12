@@ -76,8 +76,10 @@ def create_app(settings: Settings | None = None):
             if not store.verify(auth[7:],needed_scope):
                 return challenge(403,needed_scope)
             try:
+                unrestricted = store.verify(auth[7:],'lark:full')
                 async with cli_slots:
-                    result=await run_in_threadpool(tools.invoke,name,args)
+                    result=await run_in_threadpool(tools.invoke,name,args,
+                                                   unrestricted=unrestricted)
                 failed=isinstance(result,dict) and result.get('exit_code',0)!=0
                 return ok({'content':[{'type':'text','text':json.dumps(result,ensure_ascii=False)}], 'isError':failed})
             except Exception as ex:
