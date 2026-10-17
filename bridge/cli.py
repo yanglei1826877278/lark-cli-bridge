@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -35,6 +36,25 @@ class CliRunner:
         # .cmd/.bat normally execute via cmd.exe; refuse because user text could be shell-expanded.
         if os.name == 'nt' and Path(exe).suffix.lower() in ('.cmd', '.bat'):
             raise CommandError('发现 Windows CMD 包装器。请将 LARK_CLI_PATH 指向官方 lark-cli.exe，而不是 .cmd/.bat')
+        # npm's bin link may point to a JS launcher using /usr/bin/env node.
+        # systemd does not load nvm's PATH. Look beside the original link for
+        # Node, before resolving it into the package's bin directory.
+        launcher = Path(exe).absolute()
+        script = launcher.resolve()
+        try:
+            with script.open('rb') as source:
+                shebang = source.readline(256).strip()
+        except OSError:
+            # Let subprocess report missing or inaccessible executables.
+            return [str(exe)]
+        if script.suffix.lower() in ('.js', '.cjs', '.mjs') or re.match(rb'^#!.*(?:/|\s)node(?:\s|$)', shebang):
+            node = launcher.parent / ('node.exe' if os.name == 'nt' else 'node')
+            if node.is_file() and os.access(node, os.X_OK):
+                return [str(node), str(script)]
+            fallback = shutil.which('node')
+            if fallback:
+                return [fallback, str(script)]
+            raise CommandError('CLI 使用 JavaScript 启动脚本，但未找到 Node。请在 lark-cli 同目录安装 Node，或将 Node 所在目录加入服务 PATH')
         return [str(exe)]
 
     def _execute(self, args: list[str], *, stdin: str | None = None,
